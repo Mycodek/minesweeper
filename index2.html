@@ -1,237 +1,355 @@
-```html
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Probability Minesweeper</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Inter font -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-  <!-- Tailwind CSS (browser build) -->
-  <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
-  <!-- Fallback CDN (in case the browser build fails) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Probability Minesweeper</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { darkMode: 'class' };
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-gray-200 flex flex-col h-screen" style="font-family: 'Inter', sans-serif;">
-  <!-- Header & Controls -->
-  <div class="flex flex-col items-center p-4 space-y-2">
-    <h1 class="text-2xl font-bold">Probability Minesweeper</h1>
-    <div class="flex flex-wrap gap-3 items-center justify-center">
-      <label class="flex items-center space-x-1">
-        <span class="text-sm">Rows:</span>
-        <input id="rowsInput" type="number" min="5" max="30" value="10"
-               class="w-16 p-1 border rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-      </label>
-      <label class="flex items-center space-x-1">
-        <span class="text-sm">Cols:</span>
-        <input id="colsInput" type="number" min="5" max="30" value="10"
-               class="w-16 p-1 border rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-      </label>
-      <label class="flex items-center space-x-1">
-        <span class="text-sm">Complexity:</span>
-        <select id="complexitySelect"
-                class="p-1 border rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="0.1">Easy (10%)</option>
-          <option value="0.15" selected>Medium (15%)</option>
-          <option value="0.2">Hard (20%)</option>
-          <option value="custom">Custom</option>
-        </select>
-      </label>
-      <label id="customProbLabel" class="flex items-center space-x-1 hidden">
-        <span class="text-sm">Bomb %:</span>
-        <input id="bombProbInput" type="number" min="1" max="90" value="15"
-               class="w-16 p-1 border rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-      </label>
-      <button id="restartBtn"
-              class="flex items-center space-x-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-        <img src="https://unpkg.com/lucide-static@latest/icons/reload.svg" class="w-5 h-5"/>
-        <span>Restart</span>
-      </button>
-    </div>
-    <div id="message" class="mt-2 text-sm text-center text-yellow-300 min-h-5"></div>
-  </div>
 
-  <!-- Game container (scrollable) -->
-  <div id="gameContainer" class="flex-1 w-full overflow-auto p-2">
-    <div id="game" class="grid gap-0.5 mx-auto"></div>
-  </div>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-200 flex flex-col min-h-screen">
 
-  <script>
-    // ==================== Configuration ====================
-    // Default values (will be overridden by UI inputs)
-    let ROWS = 10;
-    let COLS = 10;
-    let BOMB_PROB = 0.15; // 15% default
+    <header class="p-4 flex flex-wrap items-center justify-between gap-3">
+        <h1 class="text-xl font-bold">Probability Minesweeper</h1>
 
-    // ==================== Game State ====================
-    let board = [];          // 2‑D array of cells
-    let revealedCount = 0;   // number of revealed safe cells
-    let totalSafe = 0;       // total safe cells (computed after board generation)
-    let gameOver = false;
+        <div class="flex flex-wrap gap-3 items-center">
 
-    // ==================== Helper Functions ====================
-    const inBounds = (r, c) => r >= 0 && r < ROWS && c >= 0 && c < COLS;
+            <span id="timer" class="font-mono">00:00</span>
+            <span id="bombCounter" class="font-mono">0/0</span>
 
-    const countAdjacentBombs = (r, c) => {
-      let count = 0;
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue;
-          const nr = r + dr, nc = c + dc;
-          if (inBounds(nr, nc) && board[nr][nc].bomb) count++;
-        }
-      }
-      return count;
-    };
+            <input id="rowsInput" type="number" min="5" max="50" value="20"
+                class="w-16 p-1 border rounded bg-gray-200 dark:bg-gray-700" />
 
-    const floodFill = (r, c) => {
-      const stack = [[r, c]];
-      while (stack.length) {
-        const [cr, cc] = stack.pop();
-        const cell = board[cr][cc];
-        if (cell.revealed) continue;
-        cell.revealed = true;
-        revealedCount++;
-        const el = document.getElementById(`cell-${cr}-${cc}`);
-        el.classList.add('bg-gray-800', 'text-gray-200', 'cursor-default');
-        if (cell.adjacent) {
-          el.textContent = cell.adjacent;
-        }
-        // Expand if no adjacent bombs
-        if (cell.adjacent === 0) {
-          for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-              const nr = cr + dr, nc = cc + dc;
-              if (inBounds(nr, nc) && !board[nr][nc].bomb && !board[nr][nc].revealed) {
-                stack.push([nr, nc]);
-              }
+            <input id="colsInput" type="number" min="5" max="50" value="20"
+                class="w-16 p-1 border rounded bg-gray-200 dark:bg-gray-700" />
+
+            <select id="complexitySelect" class="p-1 border rounded bg-gray-200 dark:bg-gray-700">
+                <option value="0.1">Easy</option>
+                <option value="0.15" selected>Medium</option>
+                <option value="0.2">Hard</option>
+            </select>
+
+            <button id="restartBtn" type="button"
+                class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">
+                Restart
+            </button>
+
+            <button id="resetBtn" type="button"
+                class="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">
+                Reset
+            </button>
+
+            <div class="flex items-center gap-2 select-none">
+                <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Day</span>
+                <button id="themeToggle" type="button" role="switch" aria-checked="false"
+                    class="relative inline-flex h-7 w-14 items-center rounded-full bg-gray-300 dark:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 dark:focus:ring-gray-500">
+                    <span id="themeToggleThumb"
+                        class="inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform duration-300 translate-x-1"></span>
+                </button>
+                <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">Night</span>
+            </div>
+
+        </div>
+    </header>
+
+    <div id="message" class="text-center text-sm text-red-500 h-6"></div>
+
+    <main class="flex-1 overflow-auto p-3">
+        <div id="game" class="grid gap-1 mx-auto bg-gray-300 dark:bg-gray-800 p-2 rounded shadow-md">
+            Loading board...
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+
+            let ROWS = 20;
+            let COLS = 20;
+            let BOMB_PROB = 0.15;
+
+            let board = [];
+            let totalBombs = 0;
+            let revealedCount = 0;
+            let flagsCount = 0;
+            let totalSafe = 0;
+            let gameOver = false;
+            const DEFAULT_ROWS = 20;
+            const DEFAULT_COLS = 20;
+            const DEFAULT_BOMB_PROB = 0.15; // Medium
+
+            let timerInterval = null;
+            let seconds = 0;
+
+            function updateTimer() {
+                const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const s = String(seconds % 60).padStart(2, '0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
             }
-          }
-        }
-      }
-    };
 
-    const revealAllBombs = () => {
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cell = board[r][c];
-          if (cell.bomb) {
-            const el = document.getElementById(`cell-${r}-${c}`);
-            el.classList.add('bg-red-800', 'text-white', 'cursor-default');
-            el.innerHTML = '<img src="https://unpkg.com/lucide-static@latest/icons/bomb.svg" class="w-5 h-5"/>';
-          }
-        }
-      }
-    };
+            function startTimer() {
+                if (timerInterval) return;
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    updateTimer();
+                }, 1000);
+            }
 
-    const showMessage = (msg) => {
-      document.getElementById('message').textContent = msg;
-    };
+            function stopTimer() {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
 
-    // ==================== UI Rendering ====================
-    const renderBoard = () => {
-      const gameDiv = document.getElementById('game');
-      // Set dynamic grid dimensions
-      gameDiv.style.gridTemplateColumns = `repeat(${COLS}, 2.5rem)`;
-      gameDiv.style.gridTemplateRows = `repeat(${ROWS}, 2.5rem)`;
-      gameDiv.innerHTML = ''; // clear previous cells
+            function resetTimer() {
+                stopTimer();
+                seconds = 0;
+                updateTimer();
+            }
 
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cellDiv = document.createElement('div');
-          cellDiv.id = `cell-${r}-${c}`;
-          cellDiv.className = 'w-10 h-10 flex items-center justify-center text-xs cursor-pointer select-none rounded bg-gray-600';
-          cellDiv.dataset.row = r;
-          cellDiv.dataset.col = c;
-          cellDiv.addEventListener('click', onCellClick);
-          gameDiv.appendChild(cellDiv);
-        }
-      }
-    };
+            function updateBombCounter() {
+                document.getElementById('bombCounter').textContent =
+                    `${totalBombs - flagsCount}/${totalBombs}`;
+            }
 
-    // ==================== Event Handlers ====================
-    const onCellClick = (e) => {
-      if (gameOver) return;
-      const r = Number(e.currentTarget.dataset.row);
-      const c = Number(e.currentTarget.dataset.col);
-      const cell = board[r][c];
-      if (cell.revealed) return;
-      if (cell.bomb) {
-        // Reveal bomb and end game
-        e.currentTarget.classList.add('bg-red-800', 'text-white', 'cursor-default');
-        e.currentTarget.innerHTML = '<img src="https://unpkg.com/lucide-static@latest/icons/bomb.svg" class="w-5 h-5"/>';
-        gameOver = true;
-        showMessage('💥 You hit a bomb! Game over.');
-        revealAllBombs();
-      } else {
-        // Safe cell: reveal and possibly flood‑fill
-        floodFill(r, c);
-        if (revealedCount === totalSafe) {
-          gameOver = true;
-          showMessage('🎉 Congratulations! You cleared the board.');
-          revealAllBombs(); // optional: show remaining bombs
-        }
-      }
-    };
+            function inBounds(r, c) {
+                return r >= 0 && r < ROWS && c >= 0 && c < COLS;
+            }
 
-    // ==================== Game Initialization ====================
-    const initGame = () => {
-      // Read UI values
-      ROWS = Math.max(5, Math.min(30, Number(document.getElementById('rowsInput').value)));
-      COLS = Math.max(5, Math.min(30, Number(document.getElementById('colsInput').value)));
-      const complexity = document.getElementById('complexitySelect').value;
-      if (complexity === 'custom') {
-        BOMB_PROB = Math.min(0.9, Math.max(0.01, Number(document.getElementById('bombProbInput').value) / 100));
-      } else {
-        BOMB_PROB = parseFloat(complexity);
-      }
+            function countAdjacent(r, c) {
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        if (dr === 0 && dc === 0) continue;
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (inBounds(nr, nc) && board[nr][nc].bomb) count++;
+                    }
+                }
+                return count;
+            }
 
-      board = [];
-      revealedCount = 0;
-      gameOver = false;
-      showMessage('');
+            function renderBoard() {
+                const game = document.getElementById('game');
+                game.innerHTML = "";
+                game.style.gridTemplateColumns = `repeat(${COLS}, 30px)`;
+                // Ensure the container grows to the full grid size so its background
+                // covers the entire board even when it overflows and scrolls.
+                game.style.width = "max-content";
+                game.style.gridAutoRows = "30px";
 
-      // Generate board with random bombs
-      for (let r = 0; r < ROWS; r++) {
-        const row = [];
-        for (let c = 0; c < COLS; c++) {
-          const bomb = Math.random() < BOMB_PROB;
-          row.push({ bomb, revealed: false, adjacent: 0 });
-        }
-        board.push(row);
-      }
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
 
-      // Compute adjacent bomb counts
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          if (!board[r][c].bomb) {
-            board[r][c].adjacent = countAdjacentBombs(r, c);
-          }
-        }
-      }
+                        const cell = document.createElement("div");
+                        cell.className =
+                            "w-[30px] h-[30px] flex items-center justify-center text-sm font-bold cursor-pointer bg-gray-400 dark:bg-gray-600";
+                        cell.dataset.row = r;
+                        cell.dataset.col = c;
 
-      // Count total safe cells for win detection
-      totalSafe = board.flat().filter(cell => !cell.bomb).length;
+                        cell.addEventListener("click", onClick);
+                        cell.addEventListener("contextmenu", onRightClick);
 
-      renderBoard();
-    };
+                        game.appendChild(cell);
+                    }
+                }
+            }
 
-    // ==================== UI Interaction ====================
-    document.getElementById('restartBtn').addEventListener('click', initGame);
+            function revealAllBombs() {
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        const cell = board[r][c];
+                        if (!cell.bomb) continue;
 
-    // Show/hide custom probability input
-    document.getElementById('complexitySelect').addEventListener('change', (e) => {
-      const customLabel = document.getElementById('customProbLabel');
-      if (e.target.value === 'custom') {
-        customLabel.classList.remove('hidden');
-      } else {
-        customLabel.classList.add('hidden');
-      }
-    });
+                        const el = document.querySelector(`[data-row='${r}'][data-col='${c}']`);
+                        if (!el) continue;
 
-    // Initial game start
-    initGame();
-  </script>
+                        el.textContent = "💣";
+                        el.className =
+                            `w-[30px] h-[30px] flex items-center justify-center text-sm font-bold bg-red-200 dark:bg-red-900 cursor-default ${cell.flagged ? "ring-2 ring-yellow-400" : ""}`;
+                    }
+                }
+            }
+
+            function reveal(r, c) {
+                const cell = board[r][c];
+                if (cell.revealed || cell.flagged) return;
+
+                const el = document.querySelector(`[data-row='${r}'][data-col='${c}']`);
+                cell.revealed = true;
+                revealedCount++;
+
+                el.className =
+                    "w-[30px] h-[30px] flex items-center justify-center text-sm font-bold bg-gray-200 dark:bg-gray-800 cursor-default";
+
+                if (cell.bomb) {
+                    el.textContent = "💣";
+                } else if (cell.adjacent > 0) {
+                    el.textContent = cell.adjacent;
+                }
+
+                if (!cell.bomb && cell.adjacent === 0) {
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const nr = r + dr;
+                            const nc = c + dc;
+                            if (inBounds(nr, nc)) reveal(nr, nc);
+                        }
+                    }
+                }
+            }
+
+            function onClick(e) {
+                if (gameOver) return;
+
+                const r = +e.target.dataset.row;
+                const c = +e.target.dataset.col;
+                const cell = board[r][c];
+
+                if (!timerInterval) startTimer();
+
+                if (cell.bomb) {
+                    reveal(r, c);
+                    revealAllBombs();
+                    gameOver = true;
+                    stopTimer();
+                    document.getElementById("message").textContent = "Game Over";
+                    return;
+                }
+
+                reveal(r, c);
+
+                if (revealedCount === totalSafe) {
+                    gameOver = true;
+                    stopTimer();
+                    document.getElementById("message").textContent = "You Win!";
+                }
+            }
+
+            function onRightClick(e) {
+                e.preventDefault();
+                if (gameOver) return;
+
+                const r = +e.target.dataset.row;
+                const c = +e.target.dataset.col;
+                const cell = board[r][c];
+                if (cell.revealed) return;
+
+                cell.flagged = !cell.flagged;
+                e.target.textContent = cell.flagged ? "🚩" : "";
+                flagsCount += cell.flagged ? 1 : -1;
+                updateBombCounter();
+            }
+
+            function initGame() {
+
+                ROWS = +document.getElementById('rowsInput').value;
+                COLS = +document.getElementById('colsInput').value;
+                BOMB_PROB = parseFloat(document.getElementById('complexitySelect').value);
+
+                board = [];
+                totalBombs = 0;
+                revealedCount = 0;
+                flagsCount = 0;
+                gameOver = false;
+                resetTimer();
+                document.getElementById("message").textContent = "";
+
+                for (let r = 0; r < ROWS; r++) {
+                    const row = [];
+                    for (let c = 0; c < COLS; c++) {
+                        const bomb = Math.random() < BOMB_PROB;
+                        if (bomb) totalBombs++;
+                        row.push({ bomb, revealed: false, flagged: false, adjacent: 0 });
+                    }
+                    board.push(row);
+                }
+
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        if (!board[r][c].bomb) {
+                            board[r][c].adjacent = countAdjacent(r, c);
+                        }
+                    }
+                }
+
+                totalSafe = ROWS * COLS - totalBombs;
+                updateBombCounter();
+                renderBoard();
+
+            }
+
+            function resetToDefaults() {
+                document.getElementById('rowsInput').value = String(DEFAULT_ROWS);
+                document.getElementById('colsInput').value = String(DEFAULT_COLS);
+                document.getElementById('complexitySelect').value = String(DEFAULT_BOMB_PROB);
+                initGame();
+            }
+
+            function setTheme(theme) {
+                const isDark = theme === "dark";
+                if (isDark) {
+                    document.documentElement.classList.add("dark");
+                } else {
+                    document.documentElement.classList.remove("dark");
+                }
+                localStorage.setItem("theme", theme);
+
+                const toggle = document.getElementById("themeToggle");
+                const thumb = document.getElementById("themeToggleThumb");
+                if (toggle && thumb) {
+                    toggle.setAttribute("aria-checked", String(isDark));
+                    thumb.classList.toggle("translate-x-1", !isDark);
+                    thumb.classList.toggle("translate-x-7", isDark);
+                }
+            }
+
+            function toggleTheme() {
+                const isDark = document.documentElement.classList.contains("dark");
+                setTheme(isDark ? "light" : "dark");
+            }
+
+            const restartBtn = document.getElementById("restartBtn");
+            if (restartBtn) {
+                restartBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    initGame();
+                });
+            }
+
+            const resetBtn = document.getElementById("resetBtn");
+            if (resetBtn) {
+                resetBtn.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    resetToDefaults();
+                });
+            }
+
+            const themeToggle = document.getElementById("themeToggle");
+            if (themeToggle) {
+                themeToggle.addEventListener("click", (e) => {
+                    e.preventDefault();
+                    toggleTheme();
+                });
+            }
+
+            setTheme(localStorage.getItem("theme") || "dark");
+            initGame();
+
+        });
+    </script>
+
 </body>
+
 </html>
-```
