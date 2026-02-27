@@ -17,6 +17,142 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        /* Bomb / board hit animations */
+        @keyframes bomb-hit {
+            0% {
+                transform: scale(1);
+                background-color: #fecaca;
+            }
+
+            30% {
+                transform: scale(1.2);
+                background-color: #f87171;
+            }
+
+            60% {
+                transform: scale(0.9);
+                background-color: #b91c1c;
+            }
+
+            100% {
+                transform: scale(1);
+                background-color: #fee2e2;
+            }
+        }
+
+        @keyframes board-shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            20% {
+                transform: translateX(-6px);
+            }
+
+            40% {
+                transform: translateX(6px);
+            }
+
+            60% {
+                transform: translateX(-4px);
+            }
+
+            80% {
+                transform: translateX(4px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .bomb-hit {
+            animation: bomb-hit 500ms ease-out forwards;
+        }
+
+        .board-shake {
+            animation: board-shake 500ms ease-out;
+        }
+
+        /* Board-local glass crack overlay */
+        @keyframes crack-appear {
+            0% {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+
+            40% {
+                opacity: 0.85;
+                transform: scale(1.03);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(1);
+            }
+        }
+
+        .crack-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background-image:
+                /* main diagonal crack */
+                linear-gradient(135deg,
+                    rgba(255, 255, 255, 0.98) 0,
+                    rgba(255, 255, 255, 0.98) 3px,
+                    transparent 3px),
+                /* secondary diagonal */
+                linear-gradient(225deg,
+                    rgba(255, 255, 255, 0.9) 0,
+                    rgba(255, 255, 255, 0.9) 3px,
+                    transparent 3px),
+                /* vertical split */
+                linear-gradient(180deg,
+                    rgba(255, 255, 255, 0.9) 0,
+                    rgba(255, 255, 255, 0.9) 3px,
+                    transparent 3px);
+            background-size: 100% 100%, 100% 100%, 3px 100%;
+            background-position: center center, center center, center center;
+            mix-blend-mode: screen;
+            filter: drop-shadow(0 0 6px rgba(15, 15, 15, 0.9));
+            z-index: 10;
+        }
+
+        .crack-overlay.active {
+            animation: crack-appear 650ms ease-out;
+        }
+
+        /* Dark theme color tweaks: strict neutral gray/black, no blue */
+        html.dark .bg-gray-900 {
+            background-color: #050505 !important;
+        }
+
+        html.dark .bg-gray-800 {
+            background-color: #111111 !important;
+        }
+
+        html.dark .bg-gray-700 {
+            background-color: #1a1a1a !important;
+        }
+
+        html.dark .bg-gray-600 {
+            background-color: #262626 !important;
+        }
+
+        html.dark .bg-gray-400 {
+            background-color: #404040 !important;
+        }
+
+        html.dark .text-gray-200 {
+            color: #e5e5e5 !important;
+        }
+
+        html.dark .text-gray-300 {
+            color: #d4d4d4 !important;
+        }
     </style>
 </head>
 
@@ -67,9 +203,12 @@
 
     <div id="message" class="text-center text-sm text-red-500 h-6"></div>
 
-    <main class="flex-1 overflow-auto p-3">
-        <div id="game" class="grid gap-1 mx-auto bg-gray-300 dark:bg-gray-800 p-2 rounded shadow-md">
-            Loading board...
+    <main class="flex-1 overflow-auto p-3 flex justify-center">
+        <div id="gameWrapper" class="relative inline-block">
+            <div id="game" class="grid gap-1 bg-gray-300 dark:bg-gray-800 p-2 rounded shadow-md">
+                Loading board...
+            </div>
+            <div id="crackOverlay" class="crack-overlay"></div>
         </div>
     </main>
 
@@ -222,6 +361,28 @@
                 if (cell.bomb) {
                     reveal(r, c);
                     revealAllBombs();
+
+                    const hitCell = document.querySelector(`[data-row='${r}'][data-col='${c}']`);
+                    if (hitCell) {
+                        hitCell.classList.add("bomb-hit");
+                    }
+
+                    const gameEl = document.getElementById("game");
+                    if (gameEl) {
+                        gameEl.classList.add("board-shake");
+                        setTimeout(() => {
+                            gameEl.classList.remove("board-shake");
+                        }, 500);
+                    }
+
+                    const crackOverlay = document.getElementById("crackOverlay");
+                    if (crackOverlay) {
+                        crackOverlay.classList.remove("active");
+                        // Force reflow so animation can restart on subsequent games
+                        void crackOverlay.offsetWidth;
+                        crackOverlay.classList.add("active");
+                    }
+
                     gameOver = true;
                     stopTimer();
                     document.getElementById("message").textContent = "Game Over";
@@ -349,7 +510,6 @@
 
         });
     </script>
-
 </body>
 
 </html>
